@@ -14,7 +14,7 @@ from pycuda.compiler import SourceModule
 mod = SourceModule("""
     __global__ void newtons_law(float *f_out, float *w1, float *w2, float *r)
     {
-        const int i = threadIdx.x;
+        const int i = blockIdx.x*1024 + threadIdx.x;
         f_out[i] = (w1[i]*w2[i])/(r[i]*r[i]);
     }
             """)
@@ -70,14 +70,21 @@ def timer(times=1):
     return dec
 
 def newtons_law_gpu(w1, w2, r):
-    # TODO: This is much slower than the CPU equivalent, figure out why
     out = numpy.zeros_like(w1)
-    w1 = pycuda.gpuarray.to_gpu(w1)
-    w2 = pycuda.gpuarray.to_gpu(w2)
-    r = pycuda.gpuarray.to_gpu(r)
-    out = w1*w2/(r**2)
-#    f = mod.get_function("newtons_law")
-#    f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=(1024,1,1), grid=(1,1))
+    # TODO: GPUArray works, but is much slower than the CPU equivalent and my own kernel.
+    # Figure out why!
+    #w1 = pycuda.gpuarray.to_gpu(w1)
+    #w2 = pycuda.gpuarray.to_gpu(w2)
+    #r = pycuda.gpuarray.to_gpu(r)
+    #out = w1*w2/(r**2)
+    f = mod.get_function("newtons_law")
+
+    block = (1024, 1, 1)
+    grid = (math.floor(len(out)/1024+1), 1)
+    threads = block[0] * block[1] * block[2] * grid[0] * grid[1]
+    print("Threads: {}, Out: {}".format(threads, len(out)))
+
+    f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=block, grid=grid)
     return out
 
 def newtons_law_cpu(w1, w2, r):
@@ -123,12 +130,16 @@ class NewtonsTests(unittest.TestCase):
     @timer(times=1)
     def test_benchmark_gpu(self):
         out = newtons_law(self.w1, self.w2, self.r)
-        logging.debug(out[-10:])
 
     @timer(times=1)
     def test_benchmark_cpu(self):
         out = newtons_law(self.w1, self.w2, self.r, use_gpu=False)
-        logging.debug(out[-10:])
+
+    def test_equiv_implementations(self):
+        out_gpu = newtons_law(self.w1, self.w2, self.r, use_gpu=True)
+        out_cpu = newtons_law(self.w1, self.w2, self.r, use_gpu=False)
+        self.assertTrue((out_gpu[-10:] == out_cpu[-10:]).all(), "GPU and CPU implementations gave different answers")
+
 
 
 if __name__ == "__main__":
