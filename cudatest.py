@@ -15,7 +15,7 @@ mod = SourceModule("""
     __global__ void newtons_law(float *f_out, float *w1, float *w2, float *r)
     {
         const int i = blockIdx.x*1024 + threadIdx.x;
-        f_out[i] = (w1[i]*w2[i])/(r[i]*r[i]);
+        f_out[i] = w1[i] * w2[i] / (r[i]*r[i]);
     }
             """)
 
@@ -43,18 +43,23 @@ class Body():
 
 
 def dev_info():
+    # Choose device, init context
     dev = drv.Device(0)
     ctx = dev.make_context()
-    dev_attrs = attrs = ctx.get_device().get_attributes()
+    dev_attrs = ctx.get_device().get_attributes()
     dev_data = pycuda.tools.DeviceData()
+
     print("CUDA device info")
     print(" - Max threads: {}".format(dev_data.max_threads))
     print(" - Thread blocks per mp: {}".format(dev_data.thread_blocks_per_mp))
     print(" - Shared memory: {}".format(dev_data.shared_memory))
     print("")
-    ctx.pop()
-dev_info()
 
+    # Clean up context
+    ctx.pop()
+    return dev_data
+
+device_attrs = dev_info()
 
 def timer(times=1):
     def dec(f, *args, **kwargs):
@@ -85,7 +90,7 @@ def newtons_law_gpu(w1, w2, r):
     block = (1024, 1, 1)
     grid = (math.floor(len(out)/1024+1), 1)
     threads = block[0] * block[1] * block[2] * grid[0] * grid[1]
-    print("Threads: {}, Out: {}".format(threads, len(out)))
+    #print("Threads: {}, Out: {}".format(threads, len(out)))
 
     f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=block, grid=grid)
     return out
@@ -115,28 +120,31 @@ def newtons_law(w1, w2, r, use_gpu=True):
 
 
 class NewtonsTests(unittest.TestCase):
-    n = 100
+    n = 1000
     bodies = Body.make_random_n(n=n)
+    w1, w2, r = bodies_to_newton(bodies)
+    print("Relations: {}".format(len(w1)))
 
     def setUp(self):
-        self.w1, self.w2, self.r = bodies_to_newton(self.bodies)
+        pass
 
-    @timer(times=1)
+#    @timer(times=1)
     def test_benchmark_bodies_to_newton(self):
         bodies_to_newton(Body.make_random_n(n=self.n))
 
-    @timer(times=1)
+#    @timer(times=50)
     def test_benchmark_gpu(self):
         out = newtons_law(self.w1, self.w2, self.r)
 
-    @timer(times=1)
+#    @timer(times=50)
     def test_benchmark_cpu(self):
         out = newtons_law(self.w1, self.w2, self.r, use_gpu=False)
 
+#    @timer(times=1)
     def test_equiv_implementations(self):
         out_gpu = newtons_law(self.w1, self.w2, self.r, use_gpu=True)
         out_cpu = newtons_law(self.w1, self.w2, self.r, use_gpu=False)
-        self.assertTrue((out_gpu[-10:] == out_cpu[-10:]).all(), "GPU and CPU implementations gave different answers")
+        self.assertTrue((out_gpu == out_cpu).all(), "GPU and CPU implementations gave different answers")
 
 
 
