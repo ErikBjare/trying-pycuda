@@ -7,6 +7,7 @@ import unittest
 
 import pycuda.autoinit
 import pycuda.driver as drv
+import pycuda.gpuarray
 import numpy
 
 from pycuda.compiler import SourceModule
@@ -69,9 +70,14 @@ def timer(times=1):
     return dec
 
 def newtons_law_gpu(w1, w2, r):
+    # TODO: This is much slower than the CPU equivalent, figure out why
     out = numpy.zeros_like(w1)
-    f = mod.get_function("newtons_law")
-    f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=(1024,1,1), grid=(1,1))
+    w1 = pycuda.gpuarray.to_gpu(w1)
+    w2 = pycuda.gpuarray.to_gpu(w2)
+    r = pycuda.gpuarray.to_gpu(r)
+    out = w1*w2/(r**2)
+#    f = mod.get_function("newtons_law")
+#    f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=(1024,1,1), grid=(1,1))
     return out
 
 def newtons_law_cpu(w1, w2, r):
@@ -104,7 +110,7 @@ class NewtonsTests(unittest.TestCase):
     # TODO: Fix CPU/GPU answers differing when n larger than ~45,
     # it seems to have to do with block size
 
-    n = 45
+    n = 100
     bodies = Body.make_random_n(n=n)
 
     def setUp(self):
