@@ -72,9 +72,6 @@ def newtons_law_gpu(w1, w2, r):
     out = numpy.zeros_like(w1)
     f = mod.get_function("newtons_law")
     f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=(1024,1,1), grid=(1,1))
-    # TODO: Why is it off by ~150x?
-    print((w1[0] * w2[0]) / (r[0]**2)/142)
-    print(out[0])
     return out
 
 def newtons_law_cpu(w1, w2, r):
@@ -84,9 +81,9 @@ def newtons_law_cpu(w1, w2, r):
 def bodies_to_newton(bodies):
     # bodies is a 4-tuple (x, y, z, mass)
     body_pairs = list(itertools.combinations(bodies, r=2))
-    w1 = numpy.zeros(len(body_pairs))
-    w2 = numpy.zeros(len(body_pairs))
-    r = numpy.zeros(len(body_pairs))
+    w1 = numpy.zeros(len(body_pairs)).astype(numpy.float32)
+    w2 = numpy.zeros(len(body_pairs)).astype(numpy.float32)
+    r = numpy.zeros(len(body_pairs)).astype(numpy.float32)
     for i, pair in enumerate(body_pairs):
         b1, b2 = pair
         w1[i] = b1.weight
@@ -104,9 +101,10 @@ def newtons_law(w1, w2, r, use_gpu=True):
 
 
 class NewtonsTests(unittest.TestCase):
-    # TODO: Fix CPU/GPU not giving the same answer.
+    # TODO: Fix CPU/GPU answers differing when n larger than ~45,
+    # it seems to have to do with block size
 
-    n = 4
+    n = 45
     bodies = Body.make_random_n(n=n)
 
     def setUp(self):
