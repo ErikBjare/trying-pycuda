@@ -19,7 +19,7 @@ mod = SourceModule("""
             """)
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 class Body():
@@ -55,7 +55,6 @@ def dev_info():
 dev_info()
 
 
-
 def timer(times=1):
     def dec(f, *args, **kwargs):
         def g(self):
@@ -73,10 +72,14 @@ def newtons_law_gpu(w1, w2, r):
     out = numpy.zeros_like(w1)
     f = mod.get_function("newtons_law")
     f(drv.Out(out), drv.In(w1), drv.In(w2), drv.In(r), block=(1024,1,1), grid=(1,1))
+    # TODO: Why is it off by ~150x?
+    print((w1[0] * w2[0]) / (r[0]**2)/142)
+    print(out[0])
     return out
 
 def newtons_law_cpu(w1, w2, r):
-    return numpy.array([w1[i] * w2[i] / (r[i]**2) for i in range(len(w1))])
+    return w1 * w2 / (r**2)
+    #return numpy.array([w1[i] * w2[i] / (r[i]**2) for i in range(len(w1))])
 
 def bodies_to_newton(bodies):
     # bodies is a 4-tuple (x, y, z, mass)
@@ -100,26 +103,28 @@ def newtons_law(w1, w2, r, use_gpu=True):
     return out
 
 
-
 class NewtonsTests(unittest.TestCase):
-    def setUp(self, n=1000):
-        self.n = n
-        self.w1, self.w2, self.r = bodies_to_newton(Body.make_random_n(n=n))
+    # TODO: Fix CPU/GPU not giving the same answer.
 
-    @timer(times=2)
+    n = 4
+    bodies = Body.make_random_n(n=n)
+
+    def setUp(self):
+        self.w1, self.w2, self.r = bodies_to_newton(self.bodies)
+
+    @timer(times=1)
     def test_benchmark_bodies_to_newton(self):
         bodies_to_newton(Body.make_random_n(n=self.n))
 
-    @timer(times=100)
+    @timer(times=1)
     def test_benchmark_gpu(self):
         out = newtons_law(self.w1, self.w2, self.r)
-        logging.debug(out[:10])
-
+        logging.debug(out[-10:])
 
     @timer(times=1)
     def test_benchmark_cpu(self):
         out = newtons_law(self.w1, self.w2, self.r, use_gpu=False)
-        logging.debug(out[:10])
+        logging.debug(out[-10:])
 
 
 if __name__ == "__main__":
