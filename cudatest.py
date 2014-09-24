@@ -70,6 +70,9 @@ def timer(times=1):
     return dec
 
 def newtons_law_gpu(w1, w2, r):
+    # TODO: It is still slower than CPU when it should outperform, investigate!
+    # Perhaps NumPy already utilizes the GPU?
+
     out = numpy.zeros_like(w1)
     # TODO: GPUArray works, but is much slower than the CPU equivalent and my own kernel.
     # Figure out why!
@@ -89,10 +92,8 @@ def newtons_law_gpu(w1, w2, r):
 
 def newtons_law_cpu(w1, w2, r):
     return w1 * w2 / (r**2)
-    #return numpy.array([w1[i] * w2[i] / (r[i]**2) for i in range(len(w1))])
 
 def bodies_to_newton(bodies):
-    # bodies is a 4-tuple (x, y, z, mass)
     body_pairs = list(itertools.combinations(bodies, r=2))
     w1 = numpy.zeros(len(body_pairs)).astype(numpy.float32)
     w2 = numpy.zeros(len(body_pairs)).astype(numpy.float32)
@@ -114,9 +115,6 @@ def newtons_law(w1, w2, r, use_gpu=True):
 
 
 class NewtonsTests(unittest.TestCase):
-    # TODO: Fix CPU/GPU answers differing when n larger than ~45,
-    # it seems to have to do with block size
-
     n = 100
     bodies = Body.make_random_n(n=n)
 
